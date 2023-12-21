@@ -190,23 +190,6 @@ if __name__ == "__main__":
     all_waveforms = iterate_large_files(0, 25, "C1--850V_pmt-0047_1000--", loc="/home/todor/University/MPhys project/Data_PMT/0047/850V/")
 
     make_heatmap(all_waveforms, False, "pmt-0047_850V_25000waveforms.png", False)
-    """
-    counter = 0
-    for index, waveform in tqdm(enumerate(all_waveforms)):
-        #for iterator, entry in enumerate(waveform):
-        
-        plt.plot(waveform[:,0] * 10**9, waveform[:,1] * 10**3, color='b', alpha=0.2)
-        counter += 1
-        if counter >= 100:
-            break
-        #print(waveform[:, 0])
-    plt.xlabel('time[ns]', fontsize=18)
-    plt.ylabel("Signal[mV]", fontsize=18)
-    plt.xticks(fontsize=18)
-    plt.yticks(fontsize=18)
-    plt.tight_layout()
-    plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/pmt-0047_850V_25000waveforms-plot.png", dpi=600)
-    plt.show()
-    """
+
     
 

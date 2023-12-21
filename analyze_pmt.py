@@ -724,56 +724,12 @@ def guess_datasheet():
 
 
 if __name__ == "__main__":
-    #save_all_areas(pmt_no="0049")
-    voltage, gains_1, errors_1 = do_all_fits(procedure_indep_fit, pmt_no='0049', save=False, model_fit=model, plot_titles=False)
-    voltage, gains_2, errors_2 = do_all_fits(procedure_indep_fit, pmt_no='0047', save=False, model_fit=model_4, plot_titles=False)
-    data_popt, data_perr = guess_datasheet()
-    #popt_1, pcov_1 = curve_fit(power_law, voltage, gains_1, p0=[2, 1e+6], sigma=errors_1, absolute_sigma=True, maxfev=30000)
-    #popt_2, pcov_2 = curve_fit(power_law, voltage, gains_2, p0=[2, 1e+6], sigma=errors_2, absolute_sigma=True, maxfev=30000)
-    popt_1, perr_1 = fit_gain(voltage, gains_1, errors_1)
-    popt_2, perr_2 = fit_gain(voltage, gains_2, errors_2, [9.6, 1.6e-22])
-    #perr_1 = np.sqrt(np.diag(pcov_1))
-    #perr_2 = np.sqrt(np.diag(pcov_2))
-    #print(popt_1, perr_1)
-    #print(popt_2, perr_2)
-
-    plt.errorbar(voltage, gains_2, errors_2, fmt='.', ls='None', capsize=2, label="WA0047", color='b')
-    plt.errorbar(voltage, gains_1, errors_1, fmt='.', ls='None', capsize=2, label="WA0049", color='r')
-    plt.plot(voltage, power_law(voltage, *popt_2), color='b')
-    plt.plot(voltage, power_law(voltage, *popt_1), color='r')
-    #delta_f_minus_1 = power_law(voltage[0], *popt_1) - power_law(voltage[0], popt_1[0] - perr_1[0], popt_1[1])
-    #delta_f_plus_1 = power_law(voltage[0], popt_1[0] + perr_1[0], popt_1[1]) - power_law(voltage[0], *popt_1)  
-    #plt.fill_between(voltage, power_law(voltage, popt_2[0] - perr_2[0], popt_2[1]) - perr_2[1], power_law(voltage, popt_2[0] + perr_2[0], popt_2[1])+ perr_2[1], color='b', alpha=0.1)
-    #plt.fill_between(voltage, power_law(voltage, popt_1[0] - perr_1[0], popt_1[1]) + delta_f_minus_1, power_law(voltage, popt_1[0] + perr_1[0], popt_1[1]) - delta_f_plus_1, color='r', alpha=0.1)
-    #confidence_intervals(voltage, popt_1, perr_1, 'r')
-    #confidence_intervals(voltage, popt_2, perr_2, 'b')
+    save_all_areas(pmt_no="0049")
     
-    plt.plot(voltage, power_law(voltage, *data_popt), color='black', ls='--', label="Datasheet")
-    plt.grid(True, which='both', axis='both')
-    
-    plt.legend()
-    plt.yscale('log')   
-    plt.xscale('log')
-    plt.xlabel("Voltage [V]")
-    plt.ylabel("Gain [#e]")
-    #plt.title("Gain-Voltage curves")
-    plt.tight_layout()
-    #plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/gain_voltage_pmts_both.png", dpi=600)
-    plt.show()
     
 
 
 
-    """
-    location = "/home/todor/University/MPhys project/Data_PMT/"+ "0047" + "/" + "850V" + "/"
-    fname = 'C1--850V' + "_pmt-" + "0047" + "_1000--"
-    all_waveforms = reader.iterate_large_files(0, 25, fname, loc=location)
-    reader.make_heatmap(all_waveforms, True, "pmt_0047_850V.png", True, "Recorded waveforms for a single PMT at 850V")
-    inv_waveforms = invert_waveform(all_waveforms)
-    roi_begin, roi_end, peak = analyzer.determine_roi(inv_waveforms, True)
-    roi = [roi_begin, roi_end]
-    filtered_waveforms = analyzer.filter_outliers(inv_waveforms, peak, roi)
-    areas, hist, bins = analyzer.find_area(filtered_waveforms, roi, 150, save=False, plot=True)
-    """
+
     
     
