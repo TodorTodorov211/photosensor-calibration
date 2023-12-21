@@ -10,8 +10,9 @@ from iminuit import Minuit
 import sys
 
 from scipy.optimize import curve_fit
+from compute_area import PLOTS_FOLDER, DATA_FOLDER, RESULTS_FOLDER, LOC_DATA_PMT
 
-sys.path.append("utils/")
+sys.path.append("/home/todor/University/MPhys project/MPhys_project/utils/")
 from plotting_utils import plot1d
 from plotting_utils import get_bin_centres
 from plotting_utils import get_bin_index
@@ -19,6 +20,18 @@ from plotting_utils import get_bin_index
 
 
 def invert_waveform(waveforms):
+    """A function to invert waveforms (Negative amplitudes become positive). Used for the PMT area calculation.
+
+    Parameters
+    ----------
+    waveforms : list of ndarray
+        All waveforms to be inverted. Every waveform has 2 culumns: time and amplitude
+
+    Returns
+    -------
+    list of ndarray
+        inverted waveforms
+    """
     inverted_waveforms =[]
     for wave in waveforms:
         wave[:, 1] = - wave[:, 1]
@@ -55,11 +68,56 @@ def model_4_dep(x, mu0, G, err0, err_cell, n1, n2, n3, n4):
 
 
 def power_law(x, a, b):
+    """a simple power law b * x**a
+
+    Parameters
+    ----------
+    x : float
+        x variable
+    a : float
+        power parameter (slope in log plot)
+    b : float
+        scale parameter (x=1 intercept in log plot)
+
+    Returns
+    -------
+    float
+        b * x**a
+    """
     return b * (x**a)
 
 
 def indep_fit (histogram_areas, bins, fit_region=[-0.15e-10, 1.2e-10], method='LeastSquares', plot=False, saveplot=False, fname="", p0=None, fitting_function=model, plot_title=""):
+    """Perform independent gaussian fit
 
+    Parameters
+    ----------
+    histogram_areas : list of float
+        list of all areas, calculated beforehand
+    bins : list of float
+        bin edges of the data
+    fit_region : list, optional
+        lower and upper bond of the data to be used for the fit, by default [-0.15e-10, 1.2e-10]
+    method : str, optional
+        method to use(Only LeastSquares work), by default 'LeastSquares'
+    plot : bool, optional
+        plot pretty plots or not, by default False
+    saveplot : bool, optional
+        save the plots or not, by default False
+    fname : str, optional
+        the filename to save the plots, by default ""
+    p0 : list, optional
+        Initial guess parameters. Must match the fit function, by default None
+    fitting_function : callable, optional
+        Fitting function. First parameter has to be x, by default model
+    plot_title : str, optional
+        Title to print on the plot, leave "" for no title, by default ""
+
+    Returns
+    -------
+    float, float
+        gain and error in gain of the system
+    """
     x_full = get_bin_centres(bins)
     err_all = np.sqrt(histogram_areas)
     err_all_corrected = np.where(err_all == 0, np.full(np.shape(err_all), 1), err_all)
@@ -161,19 +219,50 @@ def indep_fit (histogram_areas, bins, fit_region=[-0.15e-10, 1.2e-10], method='L
         if plot_title != "":
             axes[0].set_title(plot_title, fontsize=23)
         
-        loc = "/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/"
+        loc = PLOTS_FOLDER
         fig.savefig(loc+fname)
         
         plt.show()
 
     
-
-    return gain, err_gain, popt[3], perr[3]
+    if fitting_function == model or fitting_function == model_dep:
+        return gain, err_gain, popt[4], perr[4]
+    else:
+        return gain, err_gain, popt[5], perr[5]
 
 
     
 def dep_fit(histogram_areas, bins, fit_region=[-0.15e-10, 1.2e-10], method='LeastSquares', plot=False, saveplot=False, fname="", p0=[], fitting_function=model_4_dep, plot_title=""):
+    """Dependent fit where mu_i = i*G + mu_0
 
+    Parameters
+    ----------
+histogram_areas : list of float
+        list of all areas, calculated beforehand
+    bins : list of float
+        bin edges of the data
+    fit_region : list, optional
+        lower and upper bond of the data to be used for the fit, by default [-0.15e-10, 1.2e-10]
+    method : str, optional
+        method to use(Only LeastSquares work), by default 'LeastSquares'
+    plot : bool, optional
+        plot pretty plots or not, by default False
+    saveplot : bool, optional
+        save the plots or not, by default False
+    fname : str, optional
+        the filename to save the plots, by default ""
+    p0 : list, optional
+        Initial guess parameters. Must match the fit function, by default None
+    fitting_function : callable, optional
+        Fitting function. First parameter has to be x, by default model
+    plot_title : str, optional
+        Title to print on the plot, leave "" for no title, by default ""
+
+    Returns
+    -------
+    float, float
+        gain and error in gain of the system
+    """
     x_full = get_bin_centres(bins)
     err_all = np.sqrt(histogram_areas)
     err_all_corrected = np.where(err_all == 0, np.full(np.shape(err_all), 1), err_all)
@@ -250,7 +339,7 @@ def dep_fit(histogram_areas, bins, fit_region=[-0.15e-10, 1.2e-10], method='Leas
         axes[1].tick_params(axis='both', labelsize=15)
         if plot_title != "":
             axes[0].set_title(plot_title, fontsize=23)
-        loc = "/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/"
+        loc = PLOTS_FOLDER
         fig.savefig(loc+fname)
         
         plt.show()
@@ -264,10 +353,21 @@ def dep_fit(histogram_areas, bins, fit_region=[-0.15e-10, 1.2e-10], method='Leas
 
 
 def procedure_areas_save(pmt_no = '0047', voltage="850V", ch='C1'):
+    """Procedure to read data, apply all filters, calculate areas and save them to '.csv' file
+
+    Parameters
+    ----------
+    pmt_no : str, optional
+        The number of the pmt as recorded in the data files, by default '0047'
+    voltage : str, optional
+        the valtage at which data was recorded, by default "850V"
+    ch : str, optional
+        Channel prefix of data files added by the scope, by default 'C1'
+    """
     fname = voltage + "_pmt-" + pmt_no + "_1000--"
     if ch != None:
         fname = ch + "--" + fname
-    location = "/home/todor/University/MPhys project/Data_PMT/"+ str(pmt_no) + "/" + voltage + "/"
+    location = LOC_DATA_PMT+ str(pmt_no) + "/" + voltage + "/"
     all_waveforms = reader.iterate_large_files(0, 25, fname, loc=location)
     inv_waveforms = invert_waveform(all_waveforms)
     
@@ -281,6 +381,33 @@ def procedure_areas_save(pmt_no = '0047', voltage="850V", ch='C1'):
 
 
 def procedure_indep_fit(pmt_no = '0047', voltage="850V", bin_size=2.7e-13, fit_region=[-0.15e-10, 1.2e-10], save=False, p0=[], fitting_function=model, plot_title=False):
+    """Procedure to read the areas from a file and perform an independent fit.  The initial guess parameters may need tweaking
+
+    Parameters
+    ----------
+    pmt_no : str, optional
+        The number of the pmt as recorded in the data files, by default '0047'
+    voltage : str, optional
+        the voltage at which data was recorded, by default "850V"
+    bin_size : float, optional
+        The size of each bin to ensure equal bin sizes for all histograms, by default 2.7e-13
+    fit_region : list, optional
+        region in which to fit, due to the histogram having a long tail, not all of the data needs
+        to be included in the fit, by default [-0.15e-10, 1.2e-10]
+    save : bool, optional
+        Save the plots or not, by default False
+    p0 : list, optional
+        Initial fit parameters, by default []
+    fitting_function : callable, optional
+        a function to fit to (our model), by default model
+    plot_title : bool, optional
+        put plot title or not(no for report, yes for presentation), by default False
+
+    Returns
+    -------
+    float, float, float, float
+        gain, error of gain, stddev of the first photopeak(second peak), error on the stddev of the first photopeak
+    """
     fname = "areas_pmt-" + pmt_no + "_" + voltage + ".csv"
     loc = "analyze-lecroy/data/"
     areas = np.genfromtxt(loc + fname, delimiter=',')
@@ -303,6 +430,33 @@ def procedure_indep_fit(pmt_no = '0047', voltage="850V", bin_size=2.7e-13, fit_r
     return gain, err_gain, pedestal, err_pedestal
 
 def procedure_dep_fit(pmt_no = '0047', voltage="850V", bin_size=2.7e-13, fit_region=[-0.15e-10, 1.2e-10], save=False, p0=[], fitting_function=model_4_dep, plot_title=False):
+    """Procedure to read the areas from a file and perform a dependent fit.  The initial guess parameters may need tweaking
+
+    Parameters
+    ----------
+    pmt_no : str, optional
+        The number of the pmt as recorded in the data files, by default '0047'
+    voltage : str, optional
+        the voltage at which data was recorded, by default "850V"
+    bin_size : float, optional
+        The size of each bin to ensure equal bin sizes for all histograms, by default 2.7e-13
+    fit_region : list, optional
+        region in which to fit, due to the histogram having a long tail, not all of the data needs
+        to be included in the fit, by default [-0.15e-10, 1.2e-10]
+    save : bool, optional
+        Save the plots or not, by default False
+    p0 : list, optional
+        Initial fit parameters, by default []
+    fitting_function : callable, optional
+        a function to fit to (our model), by default model_4_dep
+    plot_title : bool, optional
+        put plot title or not(no for report, yes for presentation), by default False
+
+    Returns
+    -------
+    float, float, float, float
+        gain, error of gain, stddev of the first photopeak(second peak), error on the stddev of the first photopeak
+    """
     fname = "areas_pmt-" + pmt_no + "_" + voltage + ".csv"
     loc = "analyze-lecroy/data/"
     areas = np.genfromtxt(loc + fname, delimiter=',')
@@ -327,6 +481,17 @@ def procedure_dep_fit(pmt_no = '0047', voltage="850V", bin_size=2.7e-13, fit_reg
 
 
 def save_all_areas(pmt_no = '0047', voltage=[800, 825, 850, 875, 900], ch='C1'):
+    """Iterates all voltages for a single pmt and saves all areas
+
+    Parameters
+    ----------
+    pmt_no : str, optional
+        Number of the pmt as written in the data files, by default '0047'
+    voltage : list, optional
+        A list of all voltages to iterate(they are int), by default [800, 825, 850, 875, 900]
+    ch : str, optional
+        A channel prefix added to the datafiel name by the scope, by default 'C1'
+    """
     for V in voltage:
         V_string = str(V) + "V"
         print("Saving data for " + V_string + "...")
@@ -334,7 +499,31 @@ def save_all_areas(pmt_no = '0047', voltage=[800, 825, 850, 875, 900], ch='C1'):
 
     
 def do_all_fits(fitting_procedure, pmt_no = '0047', voltage=[800, 825, 850, 875, 900], bin_size=2.7e-13, save=False, model_fit=model_4, plot_titles=False):
+    """Read the saved data from files and perform all fits for all voltages for a single pmt.  
+    It saves the voltages, gains, errors of gains, SNRs and errors of SNRs to a txt file in the results folder
 
+    Parameters
+    ----------
+    fitting_procedure : callable
+        The fitting procedure to be called, can be procedure_dep_fit or procedure_indep_fit
+    pmt_no : str, optional
+        The number of the PMT as written in the data file names, by default '0047'
+    voltage : list, optional
+        All voltages as integers to be iterated over, by default [800, 825, 850, 875, 900]
+    bin_size : float, optional
+        The bin size for the histogram, to ensure that all bins on all histograms have the same size, by default 2.7e-13
+    save : bool, optional
+        Save the plots or not, by default False
+    model_fit : callable, optional
+        The model to fit, by default model_4
+    plot_titles : bool, optional
+        put plot titles or not, by default False
+
+    Returns
+    -------
+    list, list, list
+        voltage, gains, errors of gains
+    """
     gains = []
     err_gains = []
 
@@ -400,11 +589,14 @@ def do_all_fits(fitting_procedure, pmt_no = '0047', voltage=[800, 825, 850, 875,
     pedestal_sigmas = np.array(pedestal_sigmas)
     err_pedestal_sigmas = np.array(err_pedestal_sigmas)
 
-    gains = gains / (50 * 1.6e-19)
-    err_gains = err_gains / (50 * 1.6e-19)
+    gains /= (50 * 1.6e-19)
+    err_gains /=  (50 * 1.6e-19)
+    pedestal_sigmas /= (50 * 1.6e-19)
+    err_pedestal_sigmas /= (50 * 1.6e-19)
 
     plt.errorbar(voltage, gains, err_gains, ls='None', fmt='.', capsize=2)
     popt, pcov = curve_fit(power_law, voltage, gains, p0=[2, 1e+6], sigma=err_gains, absolute_sigma=True, maxfev=30000)
+    print(popt, pcov)
     plt.plot(voltage, power_law(voltage, *popt))
     plt.yscale('log')   
     plt.xscale('log')
@@ -414,14 +606,114 @@ def do_all_fits(fitting_procedure, pmt_no = '0047', voltage=[800, 825, 850, 875,
         plt.title("Gain-Voltage curve for PMT WA" + pmt_no)
     plt.tight_layout()
     if save == True:
-        plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/gain_voltage_pmt-WA" + pmt_no + ".png", dpi=600)
+        plt.savefig(PLOTS_FOLDER + "gain_voltage_pmt-WA" + pmt_no + ".png", dpi=600)
     plt.show()
+
+    #====================SNR========================
+    SNR = gains / pedestal_sigmas
+    err_SNR = SNR * np.sqrt( (err_gains / gains)**2 + (err_pedestal_sigmas / pedestal_sigmas)**2 )
+
+
+
+    result = np.concatenate([np.array([voltage]).T, np.array([gains]).T, np.array([err_gains]).T, np.array([SNR]).T, np.array([err_SNR]).T], axis=1)
+    #print(result)
+    loc = RESULTS_FOLDER
+    fname = "results_pmt-" + pmt_no + ".csv"
+    np.savetxt(loc + fname, result, delimiter=',', header='voltage[V], gain[#e], err_gain[#e], SNR, err_SNR')
 
     return voltage, gains, err_gains
 
 
 
+def confidence_intervals(voltage, popt, perr, color='b', alpha=0.1, axes=None):
+    """Plot the 1 sigma errors on the gain-voltage curves
 
+    Parameters
+    ----------
+    voltage : _type_
+        _description_
+    popt : _type_
+        _description_
+    perr : _type_
+        _description_
+    color : str, optional
+        _description_, by default 'b'
+    alpha : float, optional
+        _description_, by default 0.1
+    axes : _type_, optional
+        _description_, by default None
+    """
+    if perr[0] / popt[0] < 1e-3:
+        perr[0] *= 1e+4
+    #delta_f_minus = power_law(voltage[0], *popt) - power_law(voltage[0], popt[0] - perr[0], popt[1])
+    #delta_f_plus = power_law(voltage[0], popt[0] + perr[0], popt[1]) - power_law(voltage[0], *popt)
+    delta_f_minus = 0
+    delta_f_plus = 0
+    if axes == None:
+        axes = plt.gca()
+    
+    axes.fill_between(voltage, power_law(voltage, popt[0] - perr[0], popt[1] - perr[1]) + delta_f_minus, power_law(voltage, popt[0] + perr[0], popt[1] + perr[1]) - delta_f_plus, color=color, alpha=alpha)
+
+
+def fit_gain(voltage, gains, errors, p0=[7, 7e-14]):
+    """Fit the gain to a power law using the MIGRAD optimiser
+
+    Parameters
+    ----------
+    voltage : list
+        voltages (x axis data)
+    gains : list
+        gains (y axis data)
+    errors : list
+        errors on gains (y-axis errors)
+    p0 : list, optional
+        initial fit parameters, by default [7, 7e-14]
+
+    Returns
+    -------
+    list, list
+        optimal fit parameters, errors on the optimal parameters from the fit
+    """
+    cost_f = cost.LeastSquares(voltage, gains, errors, power_law, verbose=0)
+    
+    
+    fitter = Minuit(cost_f, *p0)
+    
+    fitter.simplex(ncall=30000)
+    print("SIMPLEX finished")
+    fitter.migrad(ncall=30000)
+    print("MIGRAD finished")
+    fitter.hesse()
+    fitter.minos()
+    popt = fitter.values
+    fitter.visualize()
+    print(fitter.params)
+    plt.show()
+    try:
+        perr = fitter.errors
+    except:
+        print("Hessian could not be computed...")
+
+    
+    return popt, perr
+
+
+def guess_datasheet():
+    """Hardcoded with values from the R8520-506 PMT datasheet to provide a plot for comparison
+
+    Returns
+    -------
+    list, list
+        parameters of the power law in the datasheet, errors on the parameters
+    """
+    voltage = np.array([500, 600, 700, 800, 900])
+    gain = np.array([1.6e+4, 9e+4, 3.5e+5, 1e+6, 2.5e+6])
+    errors = 0.01 * gain
+    popt, perr = fit_gain(voltage, gain, errors)
+    
+
+    print(popt, perr)
+    return popt, perr
 
 
 
@@ -433,29 +725,42 @@ def do_all_fits(fitting_procedure, pmt_no = '0047', voltage=[800, 825, 850, 875,
 
 if __name__ == "__main__":
     #save_all_areas(pmt_no="0049")
-    voltage, gains_1, errors_1 = do_all_fits(procedure_indep_fit, pmt_no='0049', save=False, model_fit=model, plot_titles=True)
-    voltage, gains_2, errors_2 = do_all_fits(procedure_indep_fit, pmt_no='0047', save=False, model_fit=model_4, plot_titles=True)
-    popt_1, pcov_1 = curve_fit(power_law, voltage, gains_1, p0=[2, 1e+6], sigma=errors_1, absolute_sigma=True, maxfev=30000)
-    popt_2, pcov_2 = curve_fit(power_law, voltage, gains_2, p0=[2, 1e+6], sigma=errors_2, absolute_sigma=True, maxfev=30000)
-    perr_1 = np.sqrt(np.diag(pcov_1))
-    perr_2 = np.sqrt(np.diag(pcov_2))
-    print(popt_1, perr_1)
+    voltage, gains_1, errors_1 = do_all_fits(procedure_indep_fit, pmt_no='0049', save=False, model_fit=model, plot_titles=False)
+    voltage, gains_2, errors_2 = do_all_fits(procedure_indep_fit, pmt_no='0047', save=False, model_fit=model_4, plot_titles=False)
+    data_popt, data_perr = guess_datasheet()
+    #popt_1, pcov_1 = curve_fit(power_law, voltage, gains_1, p0=[2, 1e+6], sigma=errors_1, absolute_sigma=True, maxfev=30000)
+    #popt_2, pcov_2 = curve_fit(power_law, voltage, gains_2, p0=[2, 1e+6], sigma=errors_2, absolute_sigma=True, maxfev=30000)
+    popt_1, perr_1 = fit_gain(voltage, gains_1, errors_1)
+    popt_2, perr_2 = fit_gain(voltage, gains_2, errors_2, [9.6, 1.6e-22])
+    #perr_1 = np.sqrt(np.diag(pcov_1))
+    #perr_2 = np.sqrt(np.diag(pcov_2))
+    #print(popt_1, perr_1)
+    #print(popt_2, perr_2)
 
     plt.errorbar(voltage, gains_2, errors_2, fmt='.', ls='None', capsize=2, label="WA0047", color='b')
     plt.errorbar(voltage, gains_1, errors_1, fmt='.', ls='None', capsize=2, label="WA0049", color='r')
     plt.plot(voltage, power_law(voltage, *popt_2), color='b')
     plt.plot(voltage, power_law(voltage, *popt_1), color='r')
-    plt.fill_between(voltage, power_law(voltage, popt_2[0] - perr_2[0], popt_2[1]), power_law(voltage, popt_2[0] + perr_2[0], popt_2[1]), color='b', alpha=0.1)
-    plt.fill_between(voltage, power_law(voltage, popt_1[0] - perr_1[0], popt_1[1]), power_law(voltage, popt_1[0] + perr_1[0], popt_1[1]), color='r', alpha=0.1)
+    #delta_f_minus_1 = power_law(voltage[0], *popt_1) - power_law(voltage[0], popt_1[0] - perr_1[0], popt_1[1])
+    #delta_f_plus_1 = power_law(voltage[0], popt_1[0] + perr_1[0], popt_1[1]) - power_law(voltage[0], *popt_1)  
+    #plt.fill_between(voltage, power_law(voltage, popt_2[0] - perr_2[0], popt_2[1]) - perr_2[1], power_law(voltage, popt_2[0] + perr_2[0], popt_2[1])+ perr_2[1], color='b', alpha=0.1)
+    #plt.fill_between(voltage, power_law(voltage, popt_1[0] - perr_1[0], popt_1[1]) + delta_f_minus_1, power_law(voltage, popt_1[0] + perr_1[0], popt_1[1]) - delta_f_plus_1, color='r', alpha=0.1)
+    #confidence_intervals(voltage, popt_1, perr_1, 'r')
+    #confidence_intervals(voltage, popt_2, perr_2, 'b')
+    
+    plt.plot(voltage, power_law(voltage, *data_popt), color='black', ls='--', label="Datasheet")
+    plt.grid(True, which='both', axis='both')
+    
     plt.legend()
     plt.yscale('log')   
     plt.xscale('log')
     plt.xlabel("Voltage [V]")
     plt.ylabel("Gain [#e]")
-    plt.title("Gain-Voltage curves")
+    #plt.title("Gain-Voltage curves")
     plt.tight_layout()
-    plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/gain_voltage_pmts_both.png", dpi=600)
+    #plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/gain_voltage_pmts_both.png", dpi=600)
     plt.show()
+    
 
 
 

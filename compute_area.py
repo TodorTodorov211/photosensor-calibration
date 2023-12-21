@@ -6,7 +6,8 @@ from scipy.stats import crystalball
 from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
 import sys
-sys.path.append("utils/")
+#change this folder so the import is correct
+sys.path.append("/home/todor/University/MPhys project/MPhys_project/utils/")
 from plotting_utils import plot1d
 from plotting_utils import get_bin_centres
 from plotting_utils import get_bin_index
@@ -19,6 +20,14 @@ from copy import deepcopy
 from iminuit import Minuit
 from iminuit import cost
 import iminuit
+
+#change these folders depending on where you want to save data and plots
+DATA_FOLDER = "/home/todor/University/MPhys project/phoyosensor-calibration/data/"
+PLOTS_FOLDER = "/home/todor/University/MPhys project/phoyosensor-calibration/plots/"
+RESULTS_FOLDER = "/home/todor/University/MPhys project/phoyosensor-calibration/results/"
+
+LOC_DATA_SIPM = "/home/todor/University/MPhys project/Data_SiPM/"
+LOC_DATA_PMT = "/home/todor/University/MPhys project/Data_PMT/"
 
 
 
@@ -75,6 +84,24 @@ def simple_model(x, mu1, delta_mu, err1, delta_err, n1, n2, n3, n4, n5, n6):
 
 
 def chi2(data, model, unc, no_params=21):
+    """A function to calculate the chi^2.  Can be replaced with Minuit.cost.LeastSquares
+
+    Parameters
+    ----------
+    data : list
+        experimental data
+    model : list
+        theoretical values
+    unc : list
+        errors in the theoretical values
+    no_params : int, optional
+        number of parameters for reduced chi^2 calculation, by default 21
+
+    Returns
+    -------
+    float
+        chi^2
+    """
     chi2 = np.sum((data - model)**2 / unc**2)
     chi2_per_DoF = chi2 / (len(data) - no_params)
     print("Chi2 : {0} and chi2 per DoF : {1}".format(chi2, chi2_per_DoF))
@@ -82,6 +109,30 @@ def chi2(data, model, unc, no_params=21):
 
 
 def plot_residuals(x, data, model, unc,fit_region , axes=None, x_scale=1):
+    """Create a residuals plot on specified axes 
+
+    Parameters
+    ----------
+    x : list
+        x data
+    data : list
+        y experimental data
+    model : list
+        theoretical y values
+    unc : list
+        uncertainties on the experimental y data
+    fit_region : list
+        region of the fit.  NOT USED (BUT IT WILL BREAK THE CODE IF REMOVED)
+    axes : matplotlib.pyplot.axes, optional
+        axes object to plot on, if 'None' current axes will be used, by default None
+    x_scale : int, optional
+        convert x to different units (eg s to ns), by default 1
+
+    Returns
+    -------
+    matplotlib.pyplot.axes
+        _axes object with the residuals plot
+    """
     if axes == None:
         axes = plt.gca()
     residuals = data - model
@@ -91,6 +142,30 @@ def plot_residuals(x, data, model, unc,fit_region , axes=None, x_scale=1):
 
 
 def plot_residuals_norm(x, data, model, unc,fit_region , axes=None, x_scale=1):
+    """Create a normalised residuals plot on specified axes 
+
+    Parameters
+    ----------
+    x : list
+        x data
+    data : list
+        y experimental data
+    model : list
+        theoretical y values
+    unc : list
+        uncertainties on the experimental y data
+    fit_region : list
+        region of the fit.  NOT USED (BUT IT WILL BREAK THE CODE IF REMOVED)
+    axes : matplotlib.pyplot.axes, optional
+        axes object to plot on, if 'None' current axes will be used, by default None
+    x_scale : int, optional
+        convert x to different units (eg s to ns), by default 1
+
+    Returns
+    -------
+    matplotlib.pyplot.axes
+        _axes object with the normalised residuals plot
+    """
     if axes == None:
         axes = plt.gca()
     unc_corr = np.where(unc == 0, np.ones(np.shape(unc)), unc)
@@ -102,7 +177,8 @@ def plot_residuals_norm(x, data, model, unc,fit_region , axes=None, x_scale=1):
 
 def determine_roi(all_waveforms, plot=False):
     """Determine the Region of Interest (ROI).  Locate the common peak in all waveforms 
-    and the beginning of integration region.
+    and the beginning of integration region.  An end value for the ROI is provided but is later 
+    discarded.
 
     Parameters
     ----------
@@ -128,6 +204,9 @@ def determine_roi(all_waveforms, plot=False):
     
     smallest = np.min(amplitude)
     amplitude = amplitude + np.abs(smallest)
+
+    time = np.array(time)
+    time *= 10**9
 
     hist, edges = np.histogram(time, bins, weights=amplitude)
     plot1d(hist, edges, alpha= 0.2, label='raw signal')
@@ -170,14 +249,16 @@ def determine_roi(all_waveforms, plot=False):
     
 
     #plt.scatter(get_bin_centres(edges)[roi_end], hist_filtered[roi_end], color='r')
-    plt.xlabel("time[s]")
-    plt.ylabel("Summed signal[V]")
-    plt.title("ROI determination")
-    plt.legend()
+    plt.xlabel("time[ns]", fontsize = 18)
+    plt.ylabel("Summed signal[V]", fontsize = 18)
+    #plt.title("ROI determination")
+    plt.legend(fontsize=18)
+    plt.tick_params(axis='both', labelsize=16)
+    plt.tight_layout()
     
 
     if plot==True:
-        plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/ROI_example_pmt.png", dpi=600)
+        #plt.savefig("PLOTS_FOLDER + ROI_example_sipm.png", dpi=600)
         plt.show()
     plt.cla()
     print("ROI determined to be [{0}:{1}]".format(roi_begin, roi_end))
@@ -186,6 +267,25 @@ def determine_roi(all_waveforms, plot=False):
 
 
 def filter_outliers(all_waveforms, max_loc, roi=[], plot=False):
+    """Filters waveforms that peak away from the predetermined peak
+
+    Parameters
+    ----------
+    all_waveforms : list of ndarray
+        a list containing all waveforms, each waveform is an ndarray with first column time[s]
+        and second column amplitude[V]
+    max_loc : int
+        index of the peak in every waveform
+    roi : list, optional
+        begin and end indices of the roi, by default []
+    plot : bool, optional
+        plot the waveforms or not, by default False
+
+    Returns
+    -------
+    list of ndarray
+        list of filtered waveforms
+    """    
     filtered_waveforms = []
     double_filtered_waveforms = []
     trash = []  #use for testing
@@ -279,8 +379,37 @@ def filter_outliers(all_waveforms, max_loc, roi=[], plot=False):
     return filtered_waveforms
 
 
-def find_area(selected_waveforms, roi=[], no_bins=150, plot=False, save=False, save_loc="/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/data/", savename="areas_sipm-1_56V_sl.csv"):
-    
+def find_area(selected_waveforms, roi=[], no_bins=150, plot=False, save=False, save_loc=DATA_FOLDER, savename="areas_sipm-1_56V_sl.csv"):
+    """
+    Filters waveforms that have high slope in the baseline region (top and bottom 10%) 
+    Calculates integration limits for all waveforms (non-flat ones)
+    Shifts all waveforms to 0
+    Integrates in the determined regions all waveforms (or up until the average of other regions)
+    Saves all areas to a file
+
+    Parameters
+    ----------
+    selected_waveforms : list of ndarray
+        a list containing all waveforms after first filter, each waveform is an ndarray with first column time[s]
+        and second column amplitude[V]
+    roi : list, optional
+        begin and end indices of roi(the end is discarded, only used as an initial estimation), by default []
+    no_bins : int, optional
+        number of bins in histogram, by default 150
+    plot : bool, optional
+        show plots of waveforms after filtering and shifting and areas histogram, by default False
+    save : bool, optional
+        save the areas to csv file or not, by default False
+    save_loc : str, optional
+        location of the saved csv, by default DATA_FOLDER
+    savename : str, optional
+        filename of the areas csv, by default "areas_sipm-1_56V_sl.csv"
+
+    Returns
+    -------
+    list<float>, ndarray, ndarray
+        list of all areas, histogrammed areas, bins of the histogram
+    """    
     areas = []
     #all_amplitudes = np.array([])
     shifted_waveforms = []
@@ -332,7 +461,7 @@ def find_area(selected_waveforms, roi=[], no_bins=150, plot=False, save=False, s
             negative_waveforms.append(waveform_2)
 
     if plot == True:
-        make_heatmap(shifted_waveforms, True, "shifted_waveforms_pmt-0047_850V.png", True, "Waveforms after filtering for a single PMT at 850V")
+        make_heatmap(shifted_waveforms, True, "shifted_waveforms_sipm-411_56V.png", False, "Waveforms after filtering for a single PMT at 850V")
         
     #shift = - np.min(all_amplitudes)
     
@@ -372,7 +501,7 @@ def find_area(selected_waveforms, roi=[], no_bins=150, plot=False, save=False, s
         plt.xlabel("Charge[nV.s]")
         plt.ylabel("Entries[0.3 counts/(nV.ms)]")
         plt.title("Charge for a single PMT")
-        plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/areas_example_pmt.png", dpi=600)
+        plt.savefig(PLOTS_FOLDER + "areas_example_sipm.png", dpi=600)
         plt.show()
         #make_heatmap(negative_waveforms, True, "cancelled_waveforms.png")
         #np.savetxt("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/data/cancelled_waveforms_example_2.csv", np.vstack(negative_waveforms), delimiter=',')
@@ -387,6 +516,34 @@ def find_area(selected_waveforms, roi=[], no_bins=150, plot=False, save=False, s
 
 
 def indep_gaus_fit(histogram_areas, bins, fit_region=[-0.15e-9, 0.8e-9], method='LeastSquares', plot=False, saveplot=False, fname="", bkg="landau", plot_title=""):
+    """preforms an independent fit
+
+    Parameters
+    ----------
+    histogram_areas : list<float>
+        list of all areas
+    bins : int
+        number of bins
+    fit_region : list<float>, optional
+        begin and end of the fit region(not all points included in the fit if the tail is too long), by default [-0.15e-9, 0.8e-9]
+    method : str, optional
+        cost function, 'LeastSquares' of 'likelihood', by default 'LeastSquares'
+    plot : bool, optional
+        print debug plots or not, by default False
+    saveplot : bool, optional
+        save pretty plots or not, by default False
+    fname : str, optional
+        filename to save the plots, by default ""
+    bkg : str, optional
+        distribution to model the background, 'landau', 'langauss', by default "landau"
+    plot_title : str, optional
+        The title to put on the plot, leave "" for no title, by default ""
+
+    Returns
+    -------
+    list<float>, list<float>
+        means of peaks, errors on means of peaks
+    """    
     x_full = get_bin_centres(bins)
     unc = np.sqrt(histogram_areas)
     x = []
@@ -518,7 +675,7 @@ def indep_gaus_fit(histogram_areas, bins, fit_region=[-0.15e-9, 0.8e-9], method=
         axes[1].tick_params(axis='both', labelsize=15)
         if plot_title != "":
             axes[0].set_title(plot_title, fontsize=23)
-        loc = "/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/"
+        loc = PLOTS_FOLDER
         fig.savefig(loc+fname)
         
         plt.show()
@@ -533,6 +690,34 @@ def indep_gaus_fit(histogram_areas, bins, fit_region=[-0.15e-9, 0.8e-9], method=
 
 
 def dep_gaus_fit(histogram_areas, bins, fit_region=[-0.15e-9, 0.8e-9], method='LeastSquares', plot=False, saveplot=False, fname="", p0=None, plot_title=""):
+    """preforms a dependent fit
+
+    Parameters
+    ----------
+    histogram_areas : list<float>
+        list of all areas
+    bins : int
+        number of bins
+    fit_region : list<float>, optional
+        begin and end of the fit region(not all points included in the fit if the tail is too long), by default [-0.15e-9, 0.8e-9]
+    method : str, optional
+        cost function, 'LeastSquares' of 'likelihood', by default 'LeastSquares'
+    plot : bool, optional
+        print debug plots or not, by default False
+    saveplot : bool, optional
+        save pretty plots or not, by default False
+    fname : str, optional
+        filename to save the plots, by default ""
+    bkg : str, optional
+        distribution to model the background, 'landau', 'langauss', by default "landau"
+    plot_title : str, optional
+        The title to put on the plot, leave "" for no title, by default ""
+
+    Returns
+    -------
+    list<float>, list<float>, list<float>, list<float>, list<float>, list<float>
+        gains, error gains, sigma gain, error sigma gain, sigma pedestal, error sigma pedestal
+    """    
     #format the input data
     x_full = get_bin_centres(bins)
     unc = np.sqrt(histogram_areas)
@@ -619,7 +804,7 @@ def dep_gaus_fit(histogram_areas, bins, fit_region=[-0.15e-9, 0.8e-9], method='L
         if plot_title != "":
             axes[0].set_title(plot_title, fontsize=23)
         
-        loc = "/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/"
+        loc = PLOTS_FOLDER
         fig.savefig(loc+fname)
         
         plt.show()
@@ -630,6 +815,16 @@ def dep_gaus_fit(histogram_areas, bins, fit_region=[-0.15e-9, 0.8e-9], method='L
 
 
 def plot_gain(means=[], err_means=[]):
+    """To be used with the independetn fit.  Plots the peak location against 
+    peak number and finds the slope (gain)
+
+    Parameters
+    ----------
+    means : list, optional
+        locations of peaks, by default []
+    err_means : list, optional
+        uncertainties of locations, by default []
+    """
     x = np.linspace(0, 4, 5)
     popt, pcov = curve_fit(linear, x, means, sigma=err_means, absolute_sigma=True)
     perr = np.sqrt(np.diag(pcov))
@@ -639,7 +834,7 @@ def plot_gain(means=[], err_means=[]):
     plt.xlabel("peak #")
     plt.ylabel("Charge[V.s]")
     plt.title("Mean of peak vs peak number")
-    plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/example_gains_fit.png")
+    plt.savefig(PLOTS_FOLDER + "example_gains_fit.png")
     plt.show()
     chi2(np.array(means), linear(x, *popt), np.array(err_means), 2)
     print(popt, perr)
@@ -648,10 +843,24 @@ def plot_gain(means=[], err_means=[]):
     
 
 def procedure_areas_save(sipm_no=411, voltage="56V", Ch=None, sipm_str='1'):
+    """Procedure to call the functions to read data, find ROI, filter waveforms,
+    integrate and save all areas to file
+
+    Parameters
+    ----------
+    sipm_no : int, optional
+        The number of the sipm as written in the data file names, by default 411
+    voltage : str, optional
+        voltage as written in the data file names, by default "56V"
+    Ch : _type_, optional
+        channel prefix added by scope, by default None
+    sipm_str : str, optional
+        in the case 2 sipms were recorded at once this string is how the filename was recorded, by default '1'
+    """
     fname = voltage + "_sipm-" + sipm_str + "_1000--"
     if Ch != None:
         fname = Ch + "--" + fname
-    location = "/home/todor/University/MPhys project/Data_SiPM/"+ str(sipm_no) + "/" + voltage + "/"
+    location = LOC_DATA_SIPM+ str(sipm_no) + "/" + voltage + "/"
     all_waveforms = reader.iterate_large_files(0, 25, fname, loc=location)
     roi_begin, roi_end, peak_loc =  determine_roi(all_waveforms, plot=False)
     roi = [roi_begin, roi_end]
@@ -661,11 +870,13 @@ def procedure_areas_save(sipm_no=411, voltage="56V", Ch=None, sipm_str='1'):
 
 
 def procedure_bkg():
-    all_waveforms = reader.iterate_large_files(0, 25, "57V_sipm-1_bkg_1000--", loc="/home/todor/University/MPhys project/Data_SiPM/411/bkg/")
+    """Procedure to analyze and find the histogram of the background (datasets with no LED power)
+    """
+    all_waveforms = reader.iterate_large_files(0, 23, "C2--57V_sipm-412413_bkg_1000--", loc=LOC_DATA_SIPM + "413/bkg/")
     roi_begin, roi_end, peak_loc =  38, 381, 110
     roi = [roi_begin, roi_end]
     filtered_waveforms = filter_outliers(all_waveforms, peak_loc, roi, plot=False)
-    areas, hist, bins = find_area(filtered_waveforms, roi, no_bins=300, save=True, plot=True, savename="areas_sipm-411_bkg_57V.csv")
+    areas, hist, bins = find_area(filtered_waveforms, roi, no_bins=600, save=True, plot=True, savename="areas_sipm-413_bkg_57V.csv")
     plot1d(hist, bins)
     plt.xlabel("Charge[V.s]")
     plt.ylabel("Entries[2.7 counts/(nV.ms)]")
@@ -673,21 +884,66 @@ def procedure_bkg():
     plt.show()
 
 def procedure_indep_fit(sipm_no=411, voltage="56V", Ch=None, bin_count=600, fit_region=[-1.5e-10, 8e-10], save=False):
+    """Procedure to read the areas from a file and perform the independent fit.  To be used after procedure_areas_save
+
+    Parameters
+    ----------
+    sipm_no : int, optional
+        The number of the sipm as written in the data file names, by default 411
+    voltage : str, optional
+        voltage as written in the data file names, by default "56V"
+    Ch : _type_, optional
+        channel prefix added by scope, by default None
+    bin_count : int, optional
+        bin count, by default 600
+    fit_region : list, optional
+        Region to fit in if not all data is to be included in the fit due to long meaningless tail, by default [-1.5e-10, 8e-10]
+    save : bool, optional
+        save pretty plots or not, by default False
+
+    Returns
+    -------
+    list, list
+        means , errors of means
+    """
     fname =  "areas_sipm-" + str(sipm_no) + "_" + voltage +".csv"
     if Ch != None:
         fname = Ch + "--" + fname
-    location = "/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/data/"
+    location = DATA_FOLDER
     areas = np.genfromtxt(location + fname, delimiter=',')
     hist, bins = np.histogram(areas, bins=bin_count)
     means, err_means = indep_gaus_fit(hist, bins, fit_region, plot=True, saveplot=save, fname="areas_fit_" + str(sipm_no) + "_" + voltage + ".png", plot_title="Independent fit for SiPM " + str(sipm_no) + " at " + voltage)
     return means, err_means
 
 def procedure_dep_fit(sipm_no=411, voltage="56V", bin_size=2.7e-12, fit_region=[-1.5e-10, 8e-10], save=False, p0=[], plot_title=False):
-    
+    """Procedure to read the areas from a file and perform the dependent fit.  To be used after procedure_areas_save
+
+    Parameters
+    ----------
+    sipm_no : int, optional
+        sipm number as written in the areas data file, by default 411
+    voltage : str, optional
+        voltage as written in the areas data file, by default "56V"
+    bin_size : float, optional
+        the size of each bin, to ensure equal bin size over different voltages, by default 2.7e-12
+    fit_region : list, optional
+        Region to fit in if not all data is to be included in the fit due to long meaningless tail, by default [-1.5e-10, 8e-10]
+    save : bool, optional
+        save pretty plot or not, by default False
+    p0 : list, optional
+        initial parameters for the fit, by default []
+    plot_title : bool, optional
+        add title to plot or not, by default False
+
+    Returns
+    -------
+    list, list, list, list, list, list
+        gain, err_gain, sigma_cell, err_sigma_cell, sigma_pedestal, err_sigma_pedestal
+    """
     fname =  "areas_sipm-" + str(sipm_no) + "_" + voltage +".csv"
     #if Ch != None:
     #    fname = Ch + "--" + fname
-    location = "/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/data/"
+    location = DATA_FOLDER
     areas = np.genfromtxt(location + fname, delimiter=',')
     areas_span = np.max(areas) - np.min(areas)
     
@@ -703,13 +959,44 @@ def procedure_dep_fit(sipm_no=411, voltage="56V", bin_size=2.7e-12, fit_region=[
 
         
 def find_all_areas(sipm_no=411, voltage=[54, 59], Ch=None, sipm_str='1'):
+    """calls procedure_areas_save for all voltages of a single SiPM
+
+    Parameters
+    ----------
+    sipm_no : int, optional
+        SiPM number as written in all data files, by default 411
+    voltage : list, optional
+        lower and upper limit of voltages to iterate over, by default [54, 59]
+    Ch : str, optional
+        channel prefix sometimes added by scope in the data file name, by default None
+    sipm_str : str, optional
+        if 2 sipms are read at once they are saved under the same name.  THis replaces sipm_no, i.e. '412413', by default '1'
+    """
     for V in range(voltage[0], voltage[1] + 1):
         
         V_string = str(V) + "V"
         print("saving data for " + V_string)
         procedure_areas_save(sipm_no=sipm_no, voltage=V_string, Ch=Ch, sipm_str=sipm_str)
 
-def do_all_fits(fitting_procedure, sipm_no=411, voltage=[54, 59], bin_size=2.7e-12, save=False):
+def do_all_fits(fitting_procedure, sipm_no=411, voltage=[54, 59], bin_size=2.7e-12, save=False, plot=False):
+    """Call the fitting procedure function to perform fits for all voltages with a single SiPM
+    Calculate SNR, breakdown voltage and save these results to a csv file in the results folder
+
+    Parameters
+    ----------
+    fitting_procedure : callable
+        The fitting procedure function, either 'procedure_dep_fit' or 'procedure_indep_fit'
+    sipm_no : int, optional
+        the sipm number as written in the areas file name, by default 411
+    voltage : list, optional
+        lower and upper limit of voltages to iterate over, by default [54, 59]
+    bin_size : float, optional
+        size of bins for all voltages, by default 2.7e-12
+    save : bool, optional
+        save pretty plots or not, by default False
+    plot : bool, optional
+        print debug plots or not, by default False
+    """
     gains = []
     err_gains = []
 
@@ -766,7 +1053,7 @@ def do_all_fits(fitting_procedure, sipm_no=411, voltage=[54, 59], bin_size=2.7e-
     #-------------------------Gain Voltage curve----------------------------------------
     popt, pcov = curve_fit(linear, voltages, gains, sigma=err_gains, absolute_sigma=True)
     perr = np.sqrt(np.diag(pcov))
-    ampl_factor = 1
+    ampl_factor = 10.1 * 50
     gains_e = gains / 1.6e-19 / ampl_factor
     err_gains_e = err_gains / 1.6e-19 /ampl_factor
     plt.errorbar(voltages, gains_e, err_gains_e , ls='None', fmt='.', capsize=5.0)
@@ -780,9 +1067,11 @@ def do_all_fits(fitting_procedure, sipm_no=411, voltage=[54, 59], bin_size=2.7e-
     chi2(gains, linear(voltages, *popt), err_gains, 2)
     print( "The breakdown voltage is: {0:3.1f} +/- {1:3.1f}".format(breakdown_V, err_breakdown_V))
 
-    fname = "gain_voltage_sipm-" + str(sipm_no) + ".png"
-    loc = "/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/"
-    plt.savefig(loc + fname)
+
+    if plot == True:
+        fname = "gain_voltage_sipm-" + str(sipm_no) + ".png"
+        loc = PLOTS_FOLDER
+        plt.savefig(loc + fname)
 
     plt.show()
 
@@ -799,7 +1088,8 @@ def do_all_fits(fitting_procedure, sipm_no=411, voltage=[54, 59], bin_size=2.7e-
     plt.errorbar(voltages, SNR, err_SNR, fmt='.', ls='None', capsize=2)
     plt.xlabel("Voltage[V]")
     plt.ylabel("SNR")
-    plt.savefig(loc + fname)
+    if plot == True:
+        plt.savefig(loc + fname)
     plt.show()
     
 
@@ -812,22 +1102,34 @@ def do_all_fits(fitting_procedure, sipm_no=411, voltage=[54, 59], bin_size=2.7e-
     err_SNR = np.array([err_SNR])
 
     results = np.concatenate([voltages.T, gains.T, err_gains.T, SNR.T, err_SNR.T], axis=1)
-    loc = "/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/results/"
+    loc = RESULTS_FOLDER
     fname = "results_sipm-" + str(sipm_no) + ".csv"
-    np.savetxt(loc+fname, results, delimiter=',', header='voltage[V], gain[#e], err_gain[#e], SNR, err_SNR')
-    print("Saved gains and SNR to file: " + loc + fname)
+    if plot == True:
+        np.savetxt(loc+fname, results, delimiter=',', header='voltage[V], gain[#e], err_gain[#e], SNR, err_SNR')
+        print("Saved gains and SNR to file: " + loc + fname)
 
 
 def overvoltages_plot(sipm_no=[411, 412, 413, 414, 417, 418, 419], voltage=4):
+    """Reads data from the results folder and plots all gains at a certain overvoltage
+
+    Parameters
+    ----------
+    sipm_no : list, optional
+        numbers of sipms to be plotted, by default [411, 412, 413, 414, 417, 418, 419]
+    voltage : int, optional
+        the overvoltage to plot for, by default 4
+    """
     G_overvoltage = []
     err_G_overvoltage = []
     breakdowns = []
     err_breakdowns = []
     for sipm in sipm_no:
-        loc = "/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/results/"
+        loc = RESULTS_FOLDER
         fname = "results_sipm-" + str(sipm) + ".csv"
         data = np.genfromtxt(loc+fname, delimiter=',', skip_header=1)
-        p0=[ 1.68893835e+08, -8.67367450e+09]
+        data[:, 1] /= 200
+        data[:, 2] /= 200
+        p0=[ 1.68893835e+06, -8.67367450e+07]
         popt, pcov = curve_fit(linear, data[:, 0], data[:, 1], sigma=data[:, 2], absolute_sigma=True, p0=p0)
         perr = np.sqrt(np.diag(pcov))
         breakdown_V = -popt[1] / popt[0]
@@ -841,7 +1143,8 @@ def overvoltages_plot(sipm_no=[411, 412, 413, 414, 417, 418, 419], voltage=4):
         breakdowns.append(breakdown_V)
         err_breakdowns.append(err_breakdown_V)
         #debug plot
-        print(breakdown_V)
+        print(breakdown_V, err_breakdown_V)
+        print(G, err_G)
         plt.errorbar(data[:, 0], data[:, 1], data[:, 2], ls='None', fmt='.')
         plt.plot(data[:, 0], linear(data[:, 0], *popt))
         plt.show()
@@ -851,21 +1154,23 @@ def overvoltages_plot(sipm_no=[411, 412, 413, 414, 417, 418, 419], voltage=4):
     plt.xticks(x, sipm_no)
     plt.xlabel("SiPM #")
     plt.ylabel("Breakdown voltage [V]")
-    plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/breakdown_V_all.png", dpi=600)
+    plt.savefig(PLOTS_FOLDER + "breakdown_V_all.png", dpi=600)
     plt.show()
 
     plt.errorbar(x, G_overvoltage, err_G_overvoltage, ls='None', fmt='.', capsize=2)
     plt.xticks(x, sipm_no)
     plt.xlabel("SiPM #")
     plt.ylabel("Gain[#e]")
-    plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/4_overvolts_all.png", dpi=600)
+    plt.savefig(PLOTS_FOLDER + "4_overvolts_all.png", dpi=600)
     plt.show()
     
     
 
 def make_pretty_plots():
-    all_waveforms = reader.iterate_large_files(0, 25, "56V_sipm-1_1000--", loc="/home/todor/University/MPhys project/Data_SiPM/411/56V/")
-    roi1, roi2, max_loc = determine_roi(all_waveforms, False)
+    """Make pretty plots for presentation.  No use for the actual analysis
+    """
+    all_waveforms = reader.iterate_large_files(0, 25, "56V_sipm-1_1000--", loc=LOC_DATA_SIPM + "411/56V/")
+    roi1, roi2, max_loc = determine_roi(all_waveforms, True)
     
     filtered_waveforms = filter_outliers(all_waveforms, max_loc, [roi1, roi2], plot=True)
     
@@ -892,7 +1197,7 @@ def make_pretty_plots():
     by_label = dict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys())
     plt.tight_layout()
-    plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/rejected_examples.png")
+    plt.savefig(PLOTS_FOLDER + "rejected_examples.png")
     plt.show()
 
 
@@ -905,15 +1210,16 @@ if __name__ == "__main__":
     #print(means, err_means)
     #procedure_gain_voltage()
     #find_all_areas(414, Ch='C4', sipm_str='414417')
-    #do_all_fits(procedure_dep_fit, sipm_no=414, save=False)
+    #do_all_fits(procedure_dep_fit, sipm_no=411, save=False)
     #overvoltages_plot()
     
     #means, err_means = procedure_indep_fit(save=True)
     #plot_gain(means, err_means)
     #do_all_fits(procedure_dep_fit, save=True)
     
-    means, err = procedure_indep_fit(save=True)
+    #means, err = procedure_indep_fit(save=True)
     #plot_gain(means, err)
+    make_pretty_plots()
     """
     areas = np.genfromtxt("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/data/areas_sipm-411_56V.csv")
     plt.hist(areas, 600)

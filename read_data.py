@@ -2,9 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import sys 
-sys.path.append("utils/")
+sys.path.append("/home/todor/University/MPhys project/MPhys_project/utils/")
 from plotting_utils import plot2d
 import matplotlib.colors
+import matplotlib.cm as colormap
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from compute_area import PLOTS_FOLDER
 
 
 
@@ -145,6 +148,11 @@ def make_heatmap(all_waveforms, save=False, savename="initial_data_reading_10x10
         for index_inner, single_point in enumerate(waveform):
             time.append(single_point[0])
             amplitude.append(single_point[1])
+
+    time = np.array(time)
+    time *= 10**9
+    amplitude = np.array(amplitude)
+    amplitude *= 10**3
         
     
     
@@ -154,17 +162,24 @@ def make_heatmap(all_waveforms, save=False, savename="initial_data_reading_10x10
     fig = plt.figure(figsize=(12, 9))
     axes = fig.add_subplot()
 
-    plot2d(image, x_edges, y_edges, axes, norm=matplotlib.colors.LogNorm())
-    axes.set_xlabel('time[s]', fontsize=22)
-    axes.set_ylabel("Amplified signal[V]", fontsize=22)
+    ax, im = plot2d(image, x_edges, y_edges, axes, norm=matplotlib.colors.LogNorm())
+    axes.set_xlabel('time[ns]', fontsize=22)
+    axes.set_ylabel("Amplified signal[mV]", fontsize=22)
     axes.tick_params(axis='both', which='major', labelsize=18)
     axes.tick_params(axis='both', which='minor', labelsize=18)
+    divider = make_axes_locatable(axes)
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    cbar = fig.colorbar(im, cax=cax, orientation='vertical')
+    cbar.set_label("Observed Frequency", fontsize=22)
+    cax.tick_params(axis='both', which='both', labelsize=18)
+    fig.tight_layout()
+    
     
     if plot_title == True:
         axes.set_title(title, fontsize=22)
 
     if save == True:
-        loc = "/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/"
+        loc = PLOTS_FOLDER
         fig.savefig(loc + savename, dpi=600)
 
     plt.show()
@@ -172,17 +187,26 @@ def make_heatmap(all_waveforms, save=False, savename="initial_data_reading_10x10
 
     
 if __name__ == "__main__":
-    all_waveforms = iterate_large_files(0, 25, "56V_sipm-1_1000--", loc="/home/todor/University/MPhys project/Data_SiPM/411/56V/")
-    #make_heatmap(all_waveforms, True, "sipm-411_56V_25000waveforms.png", True)
+    all_waveforms = iterate_large_files(0, 25, "C1--850V_pmt-0047_1000--", loc="/home/todor/University/MPhys project/Data_PMT/0047/850V/")
+
+    make_heatmap(all_waveforms, False, "pmt-0047_850V_25000waveforms.png", False)
     """
+    counter = 0
     for index, waveform in tqdm(enumerate(all_waveforms)):
         #for iterator, entry in enumerate(waveform):
         
-        plt.plot(waveform[:,0], waveform[:,1], color='b', alpha=0.002)
+        plt.plot(waveform[:,0] * 10**9, waveform[:,1] * 10**3, color='b', alpha=0.2)
+        counter += 1
+        if counter >= 100:
+            break
         #print(waveform[:, 0])
-    plt.xlabel('time(s)')
-    plt.ylabel("Amplified signal(V)")
-    plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/initial_data_reading_10x1000waveforms.png", dpi=600)
+    plt.xlabel('time[ns]', fontsize=18)
+    plt.ylabel("Signal[mV]", fontsize=18)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.tight_layout()
+    plt.savefig("/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/plots/pmt-0047_850V_25000waveforms-plot.png", dpi=600)
     plt.show()
     """
+    
 
