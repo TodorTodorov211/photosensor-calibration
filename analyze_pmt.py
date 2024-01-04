@@ -10,7 +10,7 @@ from iminuit import Minuit
 import sys
 
 from scipy.optimize import curve_fit
-from compute_area import PLOTS_FOLDER, DATA_FOLDER, RESULTS_FOLDER, LOC_DATA_PMT
+from configuration import PLOTS_FOLDER, DATA_FOLDER, RESULTS_FOLDER, LOC_DATA_PMT
 
 sys.path.append("/home/todor/University/MPhys project/MPhys_project/utils/")
 from plotting_utils import plot1d

@@ -7,7 +7,7 @@ from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
 import sys
 #change this folder so the import is correct
-sys.path.append("/home/todor/University/MPhys project/MPhys_project/utils/")
+sys.path.append("/home/todor/University/MPhys project/photosensor-calibration/utils/")
 from plotting_utils import plot1d
 from plotting_utils import get_bin_centres
 from plotting_utils import get_bin_index
@@ -21,14 +21,11 @@ from iminuit import Minuit
 from iminuit import cost
 import iminuit
 
-#change these folders depending on where you want to save data and plots
-DATA_FOLDER = "/home/todor/University/MPhys project/phoyosensor-calibration/data/"
-PLOTS_FOLDER = "/home/todor/University/MPhys project/phoyosensor-calibration/plots/"
-RESULTS_FOLDER = "/home/todor/University/MPhys project/phoyosensor-calibration/results/"
-
-LOC_DATA_SIPM = "/home/todor/University/MPhys project/Data_SiPM/"
-LOC_DATA_PMT = "/home/todor/University/MPhys project/Data_PMT/"
-
+from configuration import DATA_FOLDER
+from configuration import PLOTS_FOLDER
+from configuration import RESULTS_FOLDER
+from configuration import LOC_DATA_SIPM
+from configuration import LOC_DATA_PMT
 
 
 def mirror_crystalball(x, beta, m, loc, scale, norm, offset):
@@ -521,7 +518,17 @@ def make_pretty_plots():
 
 if __name__ == "__main__":
     
-    make_pretty_plots()
+    data = np.genfromtxt(DATA_FOLDER + "areas_sipm-411_bkg_57V.csv", delimiter=',')
+    data_range = np.max(data) - np.min(data)
+    bin_size = 2.7e-12
+    bins = int(data_range / bin_size)
+    plt.hist(data * 10**9, bins)
+    plt.xlabel("Charge [nV.s]", fontsize=15)
+    plt.ylabel("Frequency [{0:3.1f} counts / (nV.ms)]".format(bin_size* 10**12), fontsize=15)
+    plt.tick_params('both', labelsize=13)
+    plt.tight_layout()
+    plt.savefig(PLOTS_FOLDER + "background_sipm_411.png", dpi=600)
+    plt.show()
 
 
 

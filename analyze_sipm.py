@@ -17,7 +17,7 @@ from iminuit import Minuit
 from iminuit import cost
 from scipy.optimize import curve_fit
 
-from compute_area import PLOTS_FOLDER, DATA_FOLDER, RESULTS_FOLDER
+from configuration import PLOTS_FOLDER, DATA_FOLDER, RESULTS_FOLDER
 from compute_area import chi2
 
 

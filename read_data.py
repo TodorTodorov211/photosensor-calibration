@@ -7,7 +7,7 @@ from plotting_utils import plot2d
 import matplotlib.colors
 import matplotlib.cm as colormap
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from compute_area import PLOTS_FOLDER
+from configuration import PLOTS_FOLDER
 
 
 
@@ -42,6 +42,20 @@ def generate_counter_string(iterator):
 
 
 def read_large_file(filename, loc="/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/data/"):
+    """Read a single large file
+
+    Parameters
+    ----------
+    filename : str
+        filename
+    loc : str, optional
+        filepath, by default "/home/todor/University/MPhys project/MPhys_project/analyze-lecroy/data/"
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
     all_waveforms = []
     raw_data = np.genfromtxt(loc + filename, skip_header=0, delimiter=',')
     new_waveform = np.array([[-1, -1]])
